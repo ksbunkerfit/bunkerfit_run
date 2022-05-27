@@ -1,5 +1,5 @@
 name: bunkerfit_run
-version: 1.0.1+2
+version: 1.0.2+3
 publish_to: none
 description: Strong Body & Mind.
 environment:
@@ -17,7 +17,7 @@ dependencies:
   geolocator: ^8.2.1
   get: ^4.6.5
   get_storage: ^2.0.3
-  google_maps_flutter: ^2.1.5
+  google_maps_flutter: ^2.1.6
   location: ^4.4.0
   lottie: ^1.3.0
   nb_utils: ^4.5.2

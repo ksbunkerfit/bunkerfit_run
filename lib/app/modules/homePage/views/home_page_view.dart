@@ -251,6 +251,40 @@ class HomePageView extends GetView<HomePageController> {
                                 );
                               }),
                         ),
+                        /* Center(
+                          child: Obx(
+                            () => MaterialButton(
+                              onPressed: () {
+                                if (controller.isBackgroundRunning.value) {
+                                  controller.stopService();
+                                  controller.isBackgroundRunning.value = false;
+                                } else {
+                                  controller.startService();
+                                  controller.isBackgroundRunning.value = true;
+                                }
+                              },
+                              color: Colors.brown,
+                              child: Text(
+                                controller.isBackgroundRunning.value
+                                    ? "Stop Background Service"
+                                    : "Start Background Service",
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),*/
+                        /* Center(
+                          child: MaterialButton(
+                            onPressed: () {
+                              controller.isDataAvailable();
+                            },
+                            color: Colors.yellow,
+                            child: Text(
+                              "Now Data",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ), */
                       ],
                     ),
                   ),

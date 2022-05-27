@@ -14,6 +14,9 @@ import 'dart:ui' as ui;
 import 'dart:math' show asin, cos, sqrt;
 
 import '../../../lockedFiles/common_models.dart';
+import '../../../dataModels/geo_stats.dart';
+import '../../../lockedFiles/common_utils.dart';
+import '../../homePage/controllers/home_page_controller.dart';
 
 class TrackingController extends GetxController {
   RunningData? runningData;
@@ -52,6 +55,15 @@ class TrackingController extends GetxController {
   late StopWatchTimer stopWatchTimer;
   bool kmSelected = true;
 
+  RxBool isStartSet = false.obs;
+  var methodChannel = MethodChannel("com.example.messages");
+  Timer? _timer;
+
+  RxList<GeoStats> tab1Data = List<GeoStats>.empty(growable: true).obs;
+
+  final HomePageController homePageControllerHelper =
+      Get.find<HomePageController>();
+
   @override
   void onInit() {
     runningData = RunningData();
@@ -73,16 +85,166 @@ class TrackingController extends GetxController {
         },
         onChange: (value) {});
 
+    methodChannel.setMethodCallHandler(_methodCallHandler);
+
     super.onInit();
   }
 
   @override
   Future onReady() async {
+    startTrack.value = homePageControllerHelper.isAlreadyRunning.value;
+    if (startTrack.value) {
+      statusService();
+
+      DateTime dt1 = DateTime.parse(getMyStorage("geoStart"));
+      DateTime dt2 = DateTime.parse(DateTime.now().toString());
+
+      Duration diff = dt2.difference(dt1);
+
+      stopWatchTimer.setPresetSecondTime(diff.inSeconds);
+      Timer(
+        const Duration(milliseconds: 200),
+        () => stopWatchTimer.onExecute.add(StopWatchExecute.start),
+      );
+    }
+
     super.onReady();
   }
 
   @override
-  void onClose() {}
+  void onClose() {
+    if (_timer != null) _timer!.cancel();
+  }
+
+  Future<dynamic> _methodCallHandler(MethodCall call) async {
+    String method = call.method;
+
+    print(
+        "---------------------------------------------------------------->$method");
+    if (method == 'fetchLatestGeo') {
+      final map = call.arguments;
+
+      print(
+          "----======================================================>>>$map");
+
+      // toast('This is a $map');
+
+      int prevData = tab1Data.length;
+      tab1Data.clear();
+      tab1Data.addAll(geoStatsFromJson(map["geoCoordinates"].toString()));
+
+      // startTrack.value = tab1Data.length > 0;
+
+      if (startTrack.value &&
+          prevData != tab1Data.length &&
+          tab1Data.length > 0) {
+        print("--=---=-----====>>${tab1Data.length}");
+
+        polylineCoordinatesList.clear();
+        tab1Data.forEach((element) {
+          polylineCoordinatesList.add(LatLng(element.a, element.b));
+        });
+
+        LatLng currentLocation =
+            polylineCoordinatesList[polylineCoordinatesList.length - 1];
+
+        if (!isStartSet.value) {
+          LatLng startLocation = polylineCoordinatesList[0];
+
+          runningData!.sLat = startLocation.latitude.toString();
+          runningData!.sLong = startLocation.longitude.toString();
+          LatLng startPinPosition = LatLng(double.parse(runningData!.sLat!),
+              double.parse(runningData!.sLong!));
+
+          final Uint8List markerIcon = await getBytesFromAsset(
+              'assets/images/ic_map_pin_purple.png', 50);
+          final Marker marker = Marker(
+              icon: BitmapDescriptor.fromBytes(markerIcon),
+              markerId: MarkerId('1'),
+              position: startPinPosition);
+          markers.add(marker);
+
+          _timer = Timer.periodic(Duration(seconds: 5), (Timer timer) {
+            //code to run on every 5 seconds
+            print(
+                "================================================================>>>TTTimer2");
+            statusService();
+          });
+          isStartSet.value = true;
+        }
+
+        /* lastDistance = calculateDistance(
+            polylineCoordinatesList.last.latitude,
+            polylineCoordinatesList.last.longitude,
+            currentLocation.latitude,
+            currentLocation.longitude);*/
+
+        double conditionDistance;
+        if (polylineCoordinatesList.length <= 2 && GetPlatform.isIOS) {
+          conditionDistance = 0.03;
+        } else {
+          conditionDistance = 0.01;
+        }
+
+        /*  if (lastDistance >= conditionDistance) {
+          totalDistance.value += calculateDistance(
+              polylineCoordinatesList.last.latitude,
+              polylineCoordinatesList.last.longitude,
+              currentLocation.latitude,
+              currentLocation.longitude); */
+
+        /*  polylineCoordinatesList.add(
+              LatLng(currentLocation.latitude!, currentLocation.longitude!)); */
+
+        addPolyLine();
+
+        _controller?.moveCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: currentLocation,
+              zoom: 20,
+            ),
+          ),
+        );
+        /* } else {
+          log("Less Than 0.1: $lastDistance");
+          return;
+        } */
+      }
+    }
+  }
+
+  Future<void> startService() async {
+    print(
+        "================================================================01>>>");
+    methodChannel.invokeMethod("startService");
+
+    print(
+        "================================================================>>>TTTimer1");
+
+    setMyStorage("geoStart", DateTime.now().toString());
+
+    _timer = Timer.periodic(Duration(seconds: 5), (Timer timer) {
+      //code to run on every 5 seconds
+      print(
+          "================================================================>>>TTTimer2");
+      statusService();
+    });
+  }
+
+  Future<void> stopService() async {
+    print(
+        "================================================================02>>>");
+    await methodChannel.invokeMethod("stopService");
+  }
+
+  Future<void> statusService() async {
+    print(
+        "================================================================03>>>");
+    await methodChannel.invokeMethod("statusService");
+  }
+
+  // -----map===
 
   void onMapCreated(GoogleMapController _cntlr) {
     _controller = _cntlr;
@@ -150,7 +312,7 @@ class TrackingController extends GetxController {
       accuracy: LocationAccuracy.high,
     );
 
-    geoLocator.Geolocator.getPositionStream(
+    /* geoLocator.Geolocator.getPositionStream(
       locationSettings: geoLocator.LocationSettings(
           accuracy: geoLocator.LocationAccuracy.medium),
     ).listen((position) {
@@ -160,73 +322,41 @@ class TrackingController extends GetxController {
         currentSpeed = speedKmpm * 60;
         pace = 1 / speedKmpm;
       }
-    });
+    }); */
 
     _currentPosition = await _location.getLocation();
     initialcameraposition =
         LatLng(_currentPosition!.latitude!, _currentPosition!.longitude!);
 
-    locationSubscription = _location.onLocationChanged
+    // setMyStorage('ogLatitude', _currentPosition!.latitude!);
+    // setMyStorage('ogLongitude', _currentPosition!.longitude!);
+
+    if (polylineCoordinatesList.isEmpty) {
+      polylineCoordinatesList.add(
+          LatLng(_currentPosition!.latitude!, _currentPosition!.longitude!));
+
+      runningData!.sLat = _currentPosition!.latitude!.toString();
+      runningData!.sLong = _currentPosition!.longitude!.toString();
+      LatLng startPinPosition = LatLng(
+          double.parse(runningData!.sLat!), double.parse(runningData!.sLong!));
+
+      final Uint8List markerIcon =
+          await getBytesFromAsset('assets/images/ic_map_pin_purple.png', 50);
+      final Marker marker = Marker(
+          icon: BitmapDescriptor.fromBytes(markerIcon),
+          markerId: MarkerId('1'),
+          position: startPinPosition);
+      markers.add(marker);
+
+      isStartSet.value = true;
+    }
+
+    startService();
+
+    /* locationSubscription = _location.onLocationChanged
         .listen((LocationData currentLocation) async {
       log("${currentLocation.latitude} : ${currentLocation.longitude}");
-      if (startTrack.value) {
-        if (currentLocation.latitude != null &&
-            currentLocation.longitude != null) {
-          if (polylineCoordinatesList.isEmpty) {
-            polylineCoordinatesList.add(
-                LatLng(currentLocation.latitude!, currentLocation.longitude!));
-            runningData!.sLat = currentLocation.latitude!.toString();
-            runningData!.sLong = currentLocation.longitude!.toString();
-            LatLng startPinPosition = LatLng(double.parse(runningData!.sLat!),
-                double.parse(runningData!.sLong!));
-            final Uint8List markerIcon = await getBytesFromAsset(
-                'assets/images/ic_map_pin_purple.png', 50);
-
-            final Marker marker = Marker(
-                icon: BitmapDescriptor.fromBytes(markerIcon),
-                markerId: MarkerId('1'),
-                position: startPinPosition);
-            markers.add(marker);
-          }
-
-          lastDistance = calculateDistance(
-              polylineCoordinatesList.last.latitude,
-              polylineCoordinatesList.last.longitude,
-              currentLocation.latitude,
-              currentLocation.longitude);
-
-          double conditionDistance;
-          if (polylineCoordinatesList.length <= 2 && GetPlatform.isIOS) {
-            conditionDistance = 0.03;
-          } else {
-            conditionDistance = 0.01;
-          }
-
-          if (lastDistance >= conditionDistance) {
-            totalDistance.value += calculateDistance(
-                polylineCoordinatesList.last.latitude,
-                polylineCoordinatesList.last.longitude,
-                currentLocation.latitude,
-                currentLocation.longitude);
-
-            polylineCoordinatesList.add(
-                LatLng(currentLocation.latitude!, currentLocation.longitude!));
-            addPolyLine();
-            _controller?.moveCamera(
-              CameraUpdate.newCameraPosition(
-                CameraPosition(
-                    target: LatLng(
-                        currentLocation.latitude!, currentLocation.longitude!),
-                    zoom: 20),
-              ),
-            );
-          } else {
-            log("Less Than 0.1: $lastDistance");
-            return;
-          }
-        }
-      }
-    });
+    }); */
   }
 
   Future<Uint8List> getBytesFromAsset(String path, int width) async {

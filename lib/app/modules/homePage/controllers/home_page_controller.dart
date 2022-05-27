@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:location/location.dart';
 
@@ -9,18 +10,50 @@ class HomePageController extends GetxController {
   List<RunningData> recentActivitiesData = [];
   Location _location = Location();
 
+  var methodChannel = MethodChannel("com.example.messages");
+  RxBool isAlreadyRunning = false.obs;
+  RxString geoStats = "".obs;
+
   @override
   void onInit() {
+    methodChannel.setMethodCallHandler(_methodCallHandler);
+
     super.onInit();
   }
 
   @override
   void onReady() {
+    isDataAvailable();
     super.onReady();
   }
 
   @override
   void onClose() {}
+
+  Future<dynamic> _methodCallHandler(MethodCall call) async {
+    String method = call.method;
+
+    print(
+        "---------------------------------------------------------------->$method");
+    if (method == 'isDataAvailable') {
+      final map = call.arguments;
+
+      print(
+          "----======================================================>>>$map");
+
+      geoStats.value = map["geoStats"].toString();
+      isAlreadyRunning.value = geoStats.value == "start";
+      if (isAlreadyRunning.value) {
+        Get.to(() => const TrackingView());
+      }
+    }
+  }
+
+  Future<void> isDataAvailable() async {
+    print(
+        "================================================================03>>>");
+    await methodChannel.invokeMethod("isDataAvailable");
+  }
 
   Future<void> permissionCheck() async {
     bool _serviceEnabled;

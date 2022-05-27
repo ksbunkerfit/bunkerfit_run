@@ -7,7 +7,6 @@ import 'package:stop_watch_timer/stop_watch_timer.dart';
 
 import '../../../lockedFiles/common_constants.dart';
 import '../../../lockedFiles/common_widgets.dart';
-import '../../../lockedFiles/local_notify.dart';
 import '../controllers/tracking_controller.dart';
 
 class TrackingView extends GetView<TrackingController> {
@@ -22,8 +21,9 @@ class TrackingView extends GetView<TrackingController> {
       child: Obx(
         () => Scaffold(
           appBar: AppBar(
-            title: const Text('TrackingView'),
+            title: Text('TrackingView - ${controller.tab1Data.length}'),
             centerTitle: true,
+            automaticallyImplyLeading: !controller.startTrack.value,
           ),
           body: Column(
             mainAxisSize: MainAxisSize.max,
@@ -159,6 +159,9 @@ class TrackingView extends GetView<TrackingController> {
                 await controller.animateToCenterofMap();
 
                 await controller.calculationsForAllValues().then((value) async {
+                  controller.stopService();
+                  controller.homePageControllerHelper.isAlreadyRunning.value =
+                      false;
                   Get.back();
                 });
               } else {
@@ -174,11 +177,11 @@ class TrackingView extends GetView<TrackingController> {
                   controller.stopWatchTimer.onExecute
                       .add(StopWatchExecute.start);
 
-                  showNotification(
+                  /* showNotification(
                     title: "Bunkerfit",
                     body: "Running Time",
                     payload: "myNotify",
-                  );
+                  ); */
                 });
               }
             },
